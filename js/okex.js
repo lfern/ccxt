@@ -56,6 +56,13 @@ module.exports = class okex extends okcoinusd {
                             'id': '{id}',
                         },
                     },
+                    'position': {
+                        'conx-tpl': 'default',
+                        'conx-param': {
+                            'url': '{baseurl}',
+                            'id': '{id}',
+                        },
+                    },
                 },
             },
         });
@@ -137,6 +144,20 @@ module.exports = class okex extends okcoinusd {
         return market['future'];
     }
 
+    _websocketSignParams (params) {
+        const parameters = this.keysort (this.extend (
+            {
+                'api_key': this.apiKey,
+            },
+            params
+        ));
+        // secret key must be at the end of query
+        let queryString =
+            this.rawencode (parameters) + '&secret_key=' + this.secret;
+        parameters['sign'] = this.hash (this.encode (queryString)).toUpperCase ();
+        return parameters;
+    }
+
     _websocketOnOpen (contextId, params) {
         // : heartbeat
         // this._websocketHeartbeatTicker && clearInterval (this._websocketHeartbeatTicker);
@@ -155,6 +176,21 @@ module.exports = class okex extends okcoinusd {
             [contextId]
         );
         this._contextSet (contextId, 'heartbeattimer', heartbeatTimer);
+        // TODO:web socket login if have apiKey
+        if (this.apiKey && this.secret) {
+          //ok_sub_futureusd_trades,ok_sub_futureusd_userinfo,ok_sub_futureusd_positions
+          this._websocketLogin();     
+        }
+    }
+
+    _websocketLogin () {
+        this.checkRequiredCredentials ();
+        const parameters = this._websocketSignParams ({});
+        const sendJson = {
+            'event': 'login',
+            'parameters': parameters,
+        };
+        this.websocketSendJson (sendJson);
     }
 
     _websocketSendHeartbeat (contextId) {
@@ -254,6 +290,7 @@ module.exports = class okex extends okcoinusd {
             // pong
             return;
         }
+        //TODO:login ok_sub_futureusd_trades,ok_sub_futureusd_userinfo,ok_sub_futureusd_positions
         let resData = this.safeValue (msg, 'data', {});
         if (channel in this.wsconf['methodmap']) {
             let method = this.wsconf['methodmap'][channel];
@@ -264,7 +301,8 @@ module.exports = class okex extends okcoinusd {
     }
 
     _websocketOnMessage (contextId, data) {
-        // console.log ('_websocketOnMsg', data);
+      //TODO:login ok_sub_futureusd_trades,ok_sub_futureusd_userinfo,ok_sub_futureusd_positions
+        console.log ('_websocketOnMsg', data);
         let msgs = JSON.parse (data);
         if (Array.isArray (msgs)) {
             for (let i = 0; i < msgs.length; i++) {
@@ -276,7 +314,19 @@ module.exports = class okex extends okcoinusd {
     }
 
     _websocketSubscribe (contextId, event, symbol, nonce, params = {}) {
-        if (event !== 'ob') {
+        if (event == 'ob') {
+            let data = this._contextGetSymbolData (contextId, event, symbol);
+            data['depth'] = params['depth'];
+            data['limit'] = params['depth'];
+            this._contextSetSymbolData (contextId, event, symbol, data);
+            const sendJson = {
+                'event': 'addChannel',
+                'channel': this._getOrderBookChannelBySymbol (symbol, params),
+            };
+            this.websocketSendJson (sendJson);
+        } else if (event == 'position') {
+            // TODO:
+        } else {
             throw new NotSupported ('subscribe ' +
                     event +
                     '(' +
@@ -284,15 +334,6 @@ module.exports = class okex extends okcoinusd {
                     ') not supported for exchange ' +
                     this.id);
         }
-        let data = this._contextGetSymbolData (contextId, event, symbol);
-        data['depth'] = params['depth'];
-        data['limit'] = params['depth'];
-        this._contextSetSymbolData (contextId, event, symbol, data);
-        const sendJson = {
-            'event': 'addChannel',
-            'channel': this._getOrderBookChannelBySymbol (symbol, params),
-        };
-        this.websocketSendJson (sendJson);
         let nonceStr = nonce.toString ();
         this.emit (nonceStr, true);
     }
