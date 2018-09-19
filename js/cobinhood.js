@@ -842,6 +842,8 @@ module.exports = class cobinhood extends Exchange {
                 }
                 if (this._websocketIsZeroSize (item[2])) {
                     removeItem = true;
+                }else if (+item[2]<0){
+                    removeItem = true;
                 }
             }
             if (!removeItem) {
