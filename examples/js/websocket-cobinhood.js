@@ -30,10 +30,19 @@ socket.on('open', function() {
       // precision: '5E-1'
     })
   );
+
+  socket.send(
+    JSON.stringify({
+      action: 'unsubscribe',
+      channel_id: 'order-book.BTC-USDT.1E-1',
+      id: 'sample_id2'
+    })
+  );
 });
 
 socket.on('message', function(data) {
   console.log('"message" event!', data);
+
   socket.close();
 });
 

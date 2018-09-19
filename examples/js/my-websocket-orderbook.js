@@ -70,7 +70,7 @@ async function fetchOrderBook(id, apiKey, secret, limit, symbols, params) {
 
 (async function main() {
   try {
-    const id = 'hitbtc2';
+    const id = 'cobinhood';
     const depth = undefined;
     // const id = 'huobipro';
     // const depth = 5;
