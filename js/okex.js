@@ -56,7 +56,7 @@ module.exports = class okex extends okcoinusd {
                             'id': '{id}',
                         },
                     },
-                    'position': {
+                    'login': {
                         'conx-tpl': 'default',
                         'conx-param': {
                             'url': '{baseurl}',
@@ -144,6 +144,23 @@ module.exports = class okex extends okcoinusd {
         return market['future'];
     }
 
+
+    /**
+     * require invoke after invoke any websocketSubscribe
+     */
+    async websocketSendOkexEvent(event,channel, params=null) {
+      const sendJson = {
+        event,
+        channel,
+      };
+      if (params){
+        this.checkRequiredCredentials();
+        params.parameters = this._websocketSignParams(params);
+      }
+      
+      this.websocketSendJson(sendJson);
+    }
+
     _websocketSignParams (params) {
         const parameters = this.keysort (this.extend (
             {
@@ -176,11 +193,6 @@ module.exports = class okex extends okcoinusd {
             [contextId]
         );
         this._contextSet (contextId, 'heartbeattimer', heartbeatTimer);
-        // TODO:web socket login if have apiKey
-        if (this.apiKey && this.secret) {
-          //ok_sub_futureusd_trades,ok_sub_futureusd_userinfo,ok_sub_futureusd_positions
-          this._websocketLogin();     
-        }
     }
 
     _websocketLogin () {
@@ -224,6 +236,13 @@ module.exports = class okex extends okcoinusd {
 
     _websocketOnChannel (contextId, channel, msg, data) {
         // console.log('========================',msg);
+        //login ok_sub_futureusd_trades,ok_sub_futureusd_userinfo,ok_sub_futureusd_positions,ok_sub_spot_X_order,ok_sub_spot_X_balance
+        this.emit(
+          'channel',
+          channel,
+          data,
+          msg
+        );
         if (channel.indexOf ('ok_sub_spot_') >= 0) {
             // spot
             const depthIndex = channel.indexOf ('_depth');
@@ -301,8 +320,8 @@ module.exports = class okex extends okcoinusd {
     }
 
     _websocketOnMessage (contextId, data) {
-      //TODO:login ok_sub_futureusd_trades,ok_sub_futureusd_userinfo,ok_sub_futureusd_positions
-        console.log ('_websocketOnMsg', data);
+
+        // console.log ('_websocketOnMsg', data);
         let msgs = JSON.parse (data);
         if (Array.isArray (msgs)) {
             for (let i = 0; i < msgs.length; i++) {
@@ -324,8 +343,8 @@ module.exports = class okex extends okcoinusd {
                 'channel': this._getOrderBookChannelBySymbol (symbol, params),
             };
             this.websocketSendJson (sendJson);
-        } else if (event == 'position') {
-            // TODO:
+        } else if (event == 'login') {
+            this._websocketLogin();
         } else {
             throw new NotSupported ('subscribe ' +
                     event +
