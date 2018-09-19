@@ -814,16 +814,6 @@ module.exports = class cobinhood extends Exchange {
         );
     }
 
-    _websocketIsZeroSize (size) {
-        return (
-            size === '0' ||
-            size === '0.0' ||
-            size === '0.00' ||
-            size === '0.000' ||
-            size === '0.0000'
-        );
-    }
-
     _websocketUpdateOrder (items, updates, asc) {
         let newitems = [];
         let appended = {};
@@ -840,9 +830,7 @@ module.exports = class cobinhood extends Exchange {
                 if (o[0] === item[0]) {
                     item[2] = +item[2] + +o[2] + '';
                 }
-                if (this._websocketIsZeroSize (item[2])) {
-                    removeItem = true;
-                }else if (+item[2]<0){
+                if (+item[2]<=0){
                     removeItem = true;
                 }
             }
