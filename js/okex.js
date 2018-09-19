@@ -19,7 +19,8 @@ module.exports = class okex extends okcoinusd {
                 'fetchTickers': true,
             },
             'urls': {
-                'logo': 'https://user-images.githubusercontent.com/1294454/32552768-0d6dd3c6-c4a6-11e7-90f8-c043b64756a7.jpg',
+                'logo':
+                    'https://user-images.githubusercontent.com/1294454/32552768-0d6dd3c6-c4a6-11e7-90f8-c043b64756a7.jpg',
                 'api': {
                     'web': 'https://www.okex.com/v2',
                     'public': 'https://www.okex.com/api',
@@ -55,12 +56,27 @@ module.exports = class okex extends okcoinusd {
                             'id': '{id}',
                         },
                     },
+                    'login': {
+                        'conx-tpl': 'default',
+                        'conx-param': {
+                            'url': '{baseurl}',
+                            'id': '{id}',
+                        },
+                    },
                 },
             },
         });
     }
 
-    calculateFee (symbol, type, side, amount, price, takerOrMaker = 'taker', params = {}) {
+    calculateFee (
+        symbol,
+        type,
+        side,
+        amount,
+        price,
+        takerOrMaker = 'taker',
+        params = {}
+    ) {
         let market = this.markets[symbol];
         let key = 'quote';
         let rate = market[takerOrMaker];
@@ -128,6 +144,37 @@ module.exports = class okex extends okcoinusd {
         return market['future'];
     }
 
+
+    /**
+     * require invoke after invoke any websocketSubscribe
+     */
+    async websocketSendOkexEvent(event,channel, params=null) {
+      const sendJson = {
+        event,
+        channel,
+      };
+      if (params){
+        this.checkRequiredCredentials();
+        params.parameters = this._websocketSignParams(params);
+      }
+      
+      this.websocketSendJson(sendJson);
+    }
+
+    _websocketSignParams (params) {
+        const parameters = this.keysort (this.extend (
+            {
+                'api_key': this.apiKey,
+            },
+            params
+        ));
+        // secret key must be at the end of query
+        let queryString =
+            this.rawencode (parameters) + '&secret_key=' + this.secret;
+        parameters['sign'] = this.hash (this.encode (queryString)).toUpperCase ();
+        return parameters;
+    }
+
     _websocketOnOpen (contextId, params) {
         // : heartbeat
         // this._websocketHeartbeatTicker && clearInterval (this._websocketHeartbeatTicker);
@@ -146,6 +193,16 @@ module.exports = class okex extends okcoinusd {
             [contextId]
         );
         this._contextSet (contextId, 'heartbeattimer', heartbeatTimer);
+    }
+
+    _websocketLogin () {
+        this.checkRequiredCredentials ();
+        const parameters = this._websocketSignParams ({});
+        const sendJson = {
+            'event': 'login',
+            'parameters': parameters,
+        };
+        this.websocketSendJson (sendJson);
     }
 
     _websocketSendHeartbeat (contextId) {
@@ -179,6 +236,13 @@ module.exports = class okex extends okcoinusd {
 
     _websocketOnChannel (contextId, channel, msg, data) {
         // console.log('========================',msg);
+        //login ok_sub_futureusd_trades,ok_sub_futureusd_userinfo,ok_sub_futureusd_positions,ok_sub_spot_X_order,ok_sub_spot_X_balance
+        this.emit(
+          'channel',
+          channel,
+          data,
+          msg
+        );
         if (channel.indexOf ('ok_sub_spot_') >= 0) {
             // spot
             const depthIndex = channel.indexOf ('_depth');
@@ -245,6 +309,7 @@ module.exports = class okex extends okcoinusd {
             // pong
             return;
         }
+        //TODO:login ok_sub_futureusd_trades,ok_sub_futureusd_userinfo,ok_sub_futureusd_positions
         let resData = this.safeValue (msg, 'data', {});
         if (channel in this.wsconf['methodmap']) {
             let method = this.wsconf['methodmap'][channel];
@@ -255,6 +320,7 @@ module.exports = class okex extends okcoinusd {
     }
 
     _websocketOnMessage (contextId, data) {
+
         // console.log ('_websocketOnMsg', data);
         let msgs = JSON.parse (data);
         if (Array.isArray (msgs)) {
@@ -267,25 +333,38 @@ module.exports = class okex extends okcoinusd {
     }
 
     _websocketSubscribe (contextId, event, symbol, nonce, params = {}) {
-        if (event !== 'ob') {
-            throw new NotSupported ('subscribe ' + event + '(' + symbol + ') not supported for exchange ' + this.id);
+        if (event == 'ob') {
+            let data = this._contextGetSymbolData (contextId, event, symbol);
+            data['depth'] = params['depth'];
+            data['limit'] = params['depth'];
+            this._contextSetSymbolData (contextId, event, symbol, data);
+            const sendJson = {
+                'event': 'addChannel',
+                'channel': this._getOrderBookChannelBySymbol (symbol, params),
+            };
+            this.websocketSendJson (sendJson);
+        } else if (event == 'login') {
+            this._websocketLogin();
+        } else {
+            throw new NotSupported ('subscribe ' +
+                    event +
+                    '(' +
+                    symbol +
+                    ') not supported for exchange ' +
+                    this.id);
         }
-        let data = this._contextGetSymbolData (contextId, event, symbol);
-        data['depth'] = params['depth'];
-        data['limit'] = params['depth'];
-        this._contextSetSymbolData (contextId, event, symbol, data);
-        const sendJson = {
-            'event': 'addChannel',
-            'channel': this._getOrderBookChannelBySymbol (symbol, params),
-        };
-        this.websocketSendJson (sendJson);
         let nonceStr = nonce.toString ();
         this.emit (nonceStr, true);
     }
 
     _websocketUnsubscribe (contextId, event, symbol, nonce, params = {}) {
         if (event !== 'ob') {
-            throw new NotSupported ('subscribe ' + event + '(' + symbol + ') not supported for exchange ' + this.id);
+            throw new NotSupported ('subscribe ' +
+                    event +
+                    '(' +
+                    symbol +
+                    ') not supported for exchange ' +
+                    this.id);
         }
         const sendJson = {
             'event': 'removeChannel',
@@ -312,7 +391,8 @@ module.exports = class okex extends okcoinusd {
             if (!contract_type) {
                 throw new ExchangeError ('parameter contract_type is required for the future.');
             }
-            channel = 'ok_sub_future' + pair + '_depth_' + contract_type + depthParam;
+            channel =
+                'ok_sub_future' + pair + '_depth_' + contract_type + depthParam;
         }
         return channel;
     }
@@ -332,7 +412,9 @@ module.exports = class okex extends okcoinusd {
         let [currency1, currency2] = pair.split ('_');
         currency1 = currency1.toUpperCase ();
         currency2 = currency2.toUpperCase ();
-        let symbol = isFuture ? currency2 + '/' + currency1 : currency1 + '/' + currency2;
+        let symbol = isFuture
+            ? currency2 + '/' + currency1
+            : currency1 + '/' + currency2;
         return symbol;
     }
 

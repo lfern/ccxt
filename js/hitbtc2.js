@@ -1229,6 +1229,7 @@ module.exports = class hitbtc2 extends hitbtc {
                 newitems.append (item);
             }
         }
+        //FIXME:appended item?
         return newitems;
     }
 

@@ -3,7 +3,13 @@
 //  ---------------------------------------------------------------------------
 
 const Exchange = require ('./base/Exchange');
-const { ExchangeError, InsufficientFunds, InvalidNonce, InvalidOrder, PermissionDenied } = require ('./base/errors');
+const {
+    ExchangeError,
+    InsufficientFunds,
+    InvalidNonce,
+    InvalidOrder,
+    PermissionDenied,
+} = require ('./base/errors');
 
 //  ---------------------------------------------------------------------------
 
@@ -46,7 +52,8 @@ module.exports = class cobinhood extends Exchange {
                 '1M': '1M',
             },
             'urls': {
-                'logo': 'https://user-images.githubusercontent.com/1294454/35755576-dee02e5c-0878-11e8-989f-1595d80ba47f.jpg',
+                'logo':
+                    'https://user-images.githubusercontent.com/1294454/35755576-dee02e5c-0878-11e8-989f-1595d80ba47f.jpg',
                 'api': {
                     'web': 'https://api.cobinhood.com/v1',
                     'ws': 'wss://feed.cobinhood.com',
@@ -56,27 +63,13 @@ module.exports = class cobinhood extends Exchange {
             },
             'api': {
                 'system': {
-                    'get': [
-                        'info',
-                        'time',
-                        'messages',
-                        'messages/{message_id}',
-                    ],
+                    'get': ['info', 'time', 'messages', 'messages/{message_id}'],
                 },
                 'admin': {
-                    'get': [
-                        'system/messages',
-                        'system/messages/{message_id}',
-                    ],
-                    'post': [
-                        'system/messages',
-                    ],
-                    'patch': [
-                        'system/messages/{message_id}',
-                    ],
-                    'delete': [
-                        'system/messages/{message_id}',
-                    ],
+                    'get': ['system/messages', 'system/messages/{message_id}'],
+                    'post': ['system/messages'],
+                    'patch': ['system/messages/{message_id}'],
+                    'delete': ['system/messages/{message_id}'],
                 },
                 'public': {
                     'get': [
@@ -113,9 +106,7 @@ module.exports = class cobinhood extends Exchange {
                         'wallet/withdrawal_addresses',
                         'wallet/withdrawals',
                     ],
-                    'delete': [
-                        'trading/orders/{order_id}',
-                    ],
+                    'delete': ['trading/orders/{order_id}'],
                 },
             },
             'fees': {
@@ -132,6 +123,26 @@ module.exports = class cobinhood extends Exchange {
                 'insufficient_balance': InsufficientFunds,
                 'invalid_nonce': InvalidNonce,
                 'unauthorized_scope': PermissionDenied,
+            },
+            'wsconf': {
+                'conx-tpls': {
+                    'default': {
+                        'type': 'ws',
+                        'baseurl': 'wss://ws.cobinhood.com/v2/ws',
+                    },
+                },
+                'methodmap': {
+                    '_websocketSendHeartbeat': '_websocketSendHeartbeat',
+                },
+                'events': {
+                    'ob': {
+                        'conx-tpl': 'default',
+                        'conx-param': {
+                            'url': '{baseurl}',
+                            'id': '{id}',
+                        },
+                    },
+                },
             },
         });
     }
@@ -192,7 +203,7 @@ module.exports = class cobinhood extends Exchange {
         for (let i = 0; i < markets.length; i++) {
             let market = markets[i];
             let id = market['id'];
-            let [ baseId, quoteId ] = id.split ('-');
+            let [baseId, quoteId] = id.split ('-');
             let base = this.commonCurrencyCode (baseId);
             let quote = this.commonCurrencyCode (quoteId);
             let symbol = base + '/' + quote;
@@ -236,8 +247,7 @@ module.exports = class cobinhood extends Exchange {
             market = this.findMarket (marketId);
         }
         let symbol = undefined;
-        if (typeof market !== 'undefined')
-            symbol = market['symbol'];
+        if (typeof market !== 'undefined') symbol = market['symbol'];
         let timestamp = this.safeInteger (ticker, 'timestamp');
         let last = this.safeFloat (ticker, 'last_trade_price');
         return {
@@ -267,9 +277,12 @@ module.exports = class cobinhood extends Exchange {
     async fetchTicker (symbol, params = {}) {
         await this.loadMarkets ();
         let market = this.market (symbol);
-        let response = await this.publicGetMarketTickersTradingPairId (this.extend ({
-            'trading_pair_id': market['id'],
-        }, params));
+        let response = await this.publicGetMarketTickersTradingPairId (this.extend (
+            {
+                'trading_pair_id': market['id'],
+            },
+            params
+        ));
         let ticker = response['result']['ticker'];
         return this.parseTicker (ticker, market);
     }
@@ -290,16 +303,21 @@ module.exports = class cobinhood extends Exchange {
         let request = {
             'trading_pair_id': this.marketId (symbol),
         };
-        if (typeof limit !== 'undefined')
-            request['limit'] = limit; // 100
+        if (typeof limit !== 'undefined') request['limit'] = limit; // 100
         let response = await this.publicGetMarketOrderbooksTradingPairId (this.extend (request, params));
-        return this.parseOrderBook (response['result']['orderbook'], undefined, 'bids', 'asks', 0, 2);
+        return this.parseOrderBook (
+            response['result']['orderbook'],
+            undefined,
+            'bids',
+            'asks',
+            0,
+            2
+        );
     }
 
     parseTrade (trade, market = undefined) {
         let symbol = undefined;
-        if (market)
-            symbol = market['symbol'];
+        if (market) symbol = market['symbol'];
         let timestamp = trade['timestamp'];
         let price = this.safeFloat (trade, 'price');
         let amount = this.safeFloat (trade, 'size');
@@ -324,15 +342,24 @@ module.exports = class cobinhood extends Exchange {
     async fetchTrades (symbol, since = undefined, limit = 50, params = {}) {
         await this.loadMarkets ();
         let market = this.market (symbol);
-        let response = await this.publicGetMarketTradesTradingPairId (this.extend ({
-            'trading_pair_id': market['id'],
-            'limit': limit, // default 20, but that seems too little
-        }, params));
+        let response = await this.publicGetMarketTradesTradingPairId (this.extend (
+            {
+                'trading_pair_id': market['id'],
+                'limit': limit, // default 20, but that seems too little
+            },
+            params
+        ));
         let trades = response['result']['trades'];
         return this.parseTrades (trades, market, since, limit);
     }
 
-    parseOHLCV (ohlcv, market = undefined, timeframe = '5m', since = undefined, limit = undefined) {
+    parseOHLCV (
+        ohlcv,
+        market = undefined,
+        timeframe = '5m',
+        since = undefined,
+        limit = undefined
+    ) {
         return [
             // they say that timestamps are Unix Timestamps in seconds, but in fact those are milliseconds
             ohlcv['timestamp'],
@@ -344,7 +371,13 @@ module.exports = class cobinhood extends Exchange {
         ];
     }
 
-    async fetchOHLCV (symbol, timeframe = '1m', since = undefined, limit = undefined, params = {}) {
+    async fetchOHLCV (
+        symbol,
+        timeframe = '1m',
+        since = undefined,
+        limit = undefined,
+        params = {}
+    ) {
         await this.loadMarkets ();
         let market = this.market (symbol);
         //
@@ -363,8 +396,7 @@ module.exports = class cobinhood extends Exchange {
             'timeframe': this.timeframes[timeframe],
             'end_time': endTime,
         };
-        if (typeof since !== 'undefined')
-            request['start_time'] = since;
+        if (typeof since !== 'undefined') request['start_time'] = since;
         let response = await this.publicGetChartCandlesTradingPairId (this.extend (request, params));
         let ohlcv = response['result']['candles'];
         return this.parseOHLCVs (ohlcv, market, timeframe, since, limit);
@@ -403,8 +435,7 @@ module.exports = class cobinhood extends Exchange {
             'cancelled': 'canceled',
             'triggered': 'triggered',
         };
-        if (status in statuses)
-            return statuses[status];
+        if (status in statuses) return statuses[status];
         return status;
     }
 
@@ -415,8 +446,7 @@ module.exports = class cobinhood extends Exchange {
             marketId = this.safeString (order, 'trading_pair_id', marketId);
             market = this.safeValue (this.markets_by_id, marketId);
         }
-        if (typeof market !== 'undefined')
-            symbol = market['symbol'];
+        if (typeof market !== 'undefined') symbol = market['symbol'];
         let timestamp = this.safeInteger (order, 'timestamp');
         let price = this.safeFloat (order, 'eq_price');
         let amount = this.safeFloat (order, 'size');
@@ -458,10 +488,17 @@ module.exports = class cobinhood extends Exchange {
         };
     }
 
-    async createOrder (symbol, type, side, amount, price = undefined, params = {}) {
+    async createOrder (
+        symbol,
+        type,
+        side,
+        amount,
+        price = undefined,
+        params = {}
+    ) {
         await this.loadMarkets ();
         let market = this.market (symbol);
-        side = (side === 'sell') ? 'ask' : 'bid';
+        side = side === 'sell' ? 'ask' : 'bid';
         let request = {
             'trading_pair_id': market['id'],
             'type': type, // market, limit, stop, stop_limit
@@ -478,9 +515,12 @@ module.exports = class cobinhood extends Exchange {
     }
 
     async cancelOrder (id, symbol = undefined, params = {}) {
-        let response = await this.privateDeleteTradingOrdersOrderId (this.extend ({
-            'order_id': id,
-        }, params));
+        let response = await this.privateDeleteTradingOrdersOrderId (this.extend (
+            {
+                'order_id': id,
+            },
+            params
+        ));
         return this.parseOrder (this.extend (response, {
             'id': id,
         }));
@@ -488,16 +528,29 @@ module.exports = class cobinhood extends Exchange {
 
     async fetchOrder (id, symbol = undefined, params = {}) {
         await this.loadMarkets ();
-        let response = await this.privateGetTradingOrdersOrderId (this.extend ({
-            'order_id': id.toString (),
-        }, params));
+        let response = await this.privateGetTradingOrdersOrderId (this.extend (
+            {
+                'order_id': id.toString (),
+            },
+            params
+        ));
         return this.parseOrder (response['result']['order']);
     }
 
-    async fetchOpenOrders (symbol = undefined, since = undefined, limit = undefined, params = {}) {
+    async fetchOpenOrders (
+        symbol = undefined,
+        since = undefined,
+        limit = undefined,
+        params = {}
+    ) {
         await this.loadMarkets ();
         let result = await this.privateGetTradingOrders (params);
-        let orders = this.parseOrders (result['result']['orders'], undefined, since, limit);
+        let orders = this.parseOrders (
+            result['result']['orders'],
+            undefined,
+            since,
+            limit
+        );
         if (typeof symbol !== 'undefined')
             return this.filterBySymbol (orders, symbol);
         return orders;
@@ -505,10 +558,14 @@ module.exports = class cobinhood extends Exchange {
 
     async fetchOrderTrades (id, symbol = undefined, params = {}) {
         await this.loadMarkets ();
-        let response = await this.privateGetTradingOrdersOrderIdTrades (this.extend ({
-            'order_id': id,
-        }, params));
-        let market = (typeof symbol === 'undefined') ? undefined : this.market (symbol);
+        let response = await this.privateGetTradingOrdersOrderIdTrades (this.extend (
+            {
+                'order_id': id,
+            },
+            params
+        ));
+        let market =
+            typeof symbol === 'undefined' ? undefined : this.market (symbol);
         return this.parseTrades (response['result']['trades'], market);
     }
 
@@ -518,7 +575,10 @@ module.exports = class cobinhood extends Exchange {
         let response = await this.privatePostWalletDepositAddresses ({
             'currency': currency['id'],
         });
-        let address = this.safeString (response['result']['deposit_address'], 'address');
+        let address = this.safeString (
+            response['result']['deposit_address'],
+            'address'
+        );
         this.checkAddress (address);
         return {
             'currency': code,
@@ -531,10 +591,17 @@ module.exports = class cobinhood extends Exchange {
     async fetchDepositAddress (code, params = {}) {
         await this.loadMarkets ();
         let currency = this.currency (code);
-        let response = await this.privateGetWalletDepositAddresses (this.extend ({
-            'currency': currency['id'],
-        }, params));
-        let addresses = this.safeValue (response['result'], 'deposit_addresses', []);
+        let response = await this.privateGetWalletDepositAddresses (this.extend (
+            {
+                'currency': currency['id'],
+            },
+            params
+        ));
+        let addresses = this.safeValue (
+            response['result'],
+            'deposit_addresses',
+            []
+        );
         let address = undefined;
         if (addresses.length > 0) {
             address = this.safeString (addresses[0], 'address');
@@ -551,18 +618,26 @@ module.exports = class cobinhood extends Exchange {
     async withdraw (code, amount, address, params = {}) {
         await this.loadMarkets ();
         let currency = this.currency (code);
-        let response = await this.privatePostWalletWithdrawals (this.extend ({
-            'currency': currency['id'],
-            'amount': amount,
-            'address': address,
-        }, params));
+        let response = await this.privatePostWalletWithdrawals (this.extend (
+            {
+                'currency': currency['id'],
+                'amount': amount,
+                'address': address,
+            },
+            params
+        ));
         return {
             'id': response['result']['withdrawal_id'],
             'info': response,
         };
     }
 
-    async fetchMyTrades (symbol = undefined, since = undefined, limit = undefined, params = {}) {
+    async fetchMyTrades (
+        symbol = undefined,
+        since = undefined,
+        limit = undefined,
+        params = {}
+    ) {
         await this.loadMarkets ();
         let market = this.market (symbol);
         let request = {};
@@ -570,11 +645,24 @@ module.exports = class cobinhood extends Exchange {
             request['trading_pair_id'] = market['id'];
         }
         let response = await this.privateGetTradingTrades (this.extend (request, params));
-        return this.parseTrades (response['result']['trades'], market, since, limit);
+        return this.parseTrades (
+            response['result']['trades'],
+            market,
+            since,
+            limit
+        );
     }
 
-    sign (path, api = 'public', method = 'GET', params = {}, headers = undefined, body = undefined) {
-        let url = this.urls['api']['web'] + '/' + this.implodeParams (path, params);
+    sign (
+        path,
+        api = 'public',
+        method = 'GET',
+        params = {},
+        headers = undefined,
+        body = undefined
+    ) {
+        let url =
+            this.urls['api']['web'] + '/' + this.implodeParams (path, params);
         let query = this.omit (params, this.extractParams (path));
         headers = {};
         if (api === 'private') {
@@ -585,8 +673,7 @@ module.exports = class cobinhood extends Exchange {
         }
         if (method === 'GET') {
             query = this.urlencode (query);
-            if (query.length)
-                url += '?' + query;
+            if (query.length) url += '?' + query;
         } else {
             headers['Content-type'] = 'application/json; charset=UTF-8';
             body = this.json (query);
@@ -622,5 +709,195 @@ module.exports = class cobinhood extends Exchange {
 
     nonce () {
         return this.milliseconds ();
+    }
+
+    _websocketOnOpen (contextId, params) {
+        let heartbeatTimer = this._contextGet (contextId, 'heartbeattimer');
+        if (typeof heartbeatTimer !== 'undefined') {
+            this._cancelTimer (heartbeatTimer);
+        }
+        heartbeatTimer = this._setTimer (
+            50000,
+            this._websocketMethodMap ('_websocketSendHeartbeat'),
+            [contextId]
+        );
+        this._contextSet (contextId, 'heartbeattimer', heartbeatTimer);
+    }
+
+    _websocketSendHeartbeat (contextId) {
+        this.websocketSendJson (
+            {
+                'action': 'ping',
+                'id': Date.now () + '',
+            },
+            contextId
+        );
+    }
+
+    websocketClose (conxid = 'default') {
+        super.websocketClose (conxid);
+        let heartbeatTimer = this._contextGet (conxid, 'heartbeattimer');
+        if (typeof heartbeatTimer !== 'undefined') {
+            this._cancelTimer (heartbeatTimer);
+        }
+        this._contextSet (conxid, 'heartbeattimer', undefined);
+    }
+
+    _websocketOnMessage (contextId, data) {
+        let msg = JSON.parse (data);
+        if (msg.h) {
+            const [event, version, action] = msg.h;
+            if (event.indexOf ('order-book.') == 0) {
+                const [eventName, nativeSymbol, precision] = event.split ('.');
+                if (action == 's') {
+                    // snapshot
+                    this._websocketHandleSnapshotOrderbook (
+                        contextId,
+                        msg,
+                        nativeSymbol,
+                        precision
+                    );
+                } else if (action == 'u') {
+                    // update
+                    this._websocketHandleUpdateOrderbook (
+                        contextId,
+                        msg,
+                        nativeSymbol,
+                        precision
+                    );
+                }
+            }
+        }
+    }
+
+    _websocketHandleSnapshotOrderbook (contextId, data, rawsymbol, precision) {
+        const timestamp = undefined;
+        const obdata = this.safeValue (data, 'd');
+        const symbol = this.marketsById[rawsymbol].symbol;
+        // :parse orderbook
+        let ob = this.parseOrderBook (obdata, timestamp, 'bids', 'asks', 0, 2);
+        // console.log('parsed',ob);
+        let symbolData = this._contextGetSymbolData (contextId, 'ob', symbol);
+        symbolData['ob'] = ob;
+        symbolData['rawData'] = obdata;
+        this._contextSetSymbolData (contextId, 'ob', symbol, symbolData);
+        this.emit (
+            'ob',
+            symbol,
+            this._cloneOrderBook (symbolData['ob'], symbolData['limit'])
+        );
+    }
+
+    _websocketHandleUpdateOrderbook (contextId, data, rawsymbol, precision) {
+        const timestamp = undefined;
+        const obdata = this.safeValue (data, 'd');
+        const symbol = this.marketsById[rawsymbol].symbol;
+        let symbolData = this._contextGetSymbolData (contextId, 'ob', symbol);
+        // :get updated last raw ob
+        const rawData = symbolData['rawData'];
+        // console.log('>>>>>>get last raw',rawData);
+        // :update,remove size = 0,check sequence
+        rawData.asks = this._websocketUpdateOrder (rawData.asks, obdata.asks,true);
+        rawData.bids = this._websocketUpdateOrder (rawData.bids, obdata.bids,false);
+        // console.log('updated raw',rawData,obdata);
+        // :parse orderbook
+        let ob = this.parseOrderBook (rawData, timestamp, 'bids', 'asks', 0, 2);
+        // console.log('parsed',ob);
+        // :update last raw ob
+        symbolData['ob'] = ob;
+        symbolData['rawData'] = rawData;
+        this._contextSetSymbolData (contextId, 'ob', symbol, symbolData);
+        this.emit (
+            'ob',
+            symbol,
+            this._cloneOrderBook (symbolData['ob'], symbolData['limit'])
+        );
+    }
+
+    _websocketUpdateOrder (items, updates, asc) {
+        let newitems = [];
+        let appended = {};
+        for (let j = 0; j < updates.length; j++) {
+            const o = updates[j];
+            appended[o[0]] = o;
+        }
+        for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+            let removeItem = false;
+            delete appended[item[0]];
+            for (let j = 0; j < updates.length; j++) {
+                const o = updates[j];
+                if (o[0] === item[0]) {
+                    item[2] = +item[2] + +o[2] + '';
+                }
+                if (+item[2]<=0){
+                    removeItem = true;
+                }
+            }
+            if (!removeItem) {
+                newitems.push (item);
+            }
+        }
+        // appended item
+        Object.keys (appended).map ((price) => {
+            newitems.push (appended[price]);
+        });
+        newitems.sort ((a, b) => (asc ? +a[0] - +b[0] : +b[0] - +a[0]));
+        return newitems;
+    }
+
+    _websocketSubscribe (contextId, event, symbol, nonce, params = {}) {
+        if (event !== 'ob') {
+            throw new NotSupported ('subscribe ' +
+                    event +
+                    '(' +
+                    symbol +
+                    ') not supported for exchange ' +
+                    this.id);
+        }
+        // there are no depth parameter
+        let data = this._contextGetSymbolData (contextId, event, symbol);
+        data['limit'] = params['limit'] || 200;
+        // it is not limit
+        // data['limit'] = params['depth'];
+        this._contextSetSymbolData (contextId, event, symbol, data);
+        const rawsymbol = this.marketId (symbol);
+        const sendJson = {
+            'action': 'subscribe',
+            'type': 'order-book',
+            'trading_pair_id': rawsymbol,
+        };
+        this.websocketSendJson (sendJson);
+        let nonceStr = nonce.toString ();
+        this.emit (nonceStr, true);
+    }
+
+    _websocketUnsubscribe (contextId, event, symbol, nonce, params = {}) {
+        if (event !== 'ob') {
+            throw new NotSupported ('unsubscribe ' +
+                    event +
+                    '(' +
+                    symbol +
+                    ') not supported for exchange ' +
+                    this.id);
+        }
+        const rawsymbol = this.marketId (symbol);
+        // TODO:precision is hardcoded as we use default value when subscribe
+        const sendJson = {
+            'action': 'unsubscribe',
+            'channel_id': `order-book.${rawsymbol}.1E-1`,
+            'id': Date.now () + '',
+        };
+        this.websocketSendJson (sendJson);
+        let nonceStr = nonce.toString ();
+        this.emit (nonceStr, true);
+    }
+
+    _getCurrentWebsocketOrderbook (contextId, symbol, limit) {
+        let data = this._contextGetSymbolData (contextId, 'ob', symbol);
+        if ('ob' in data && typeof data['ob'] !== 'undefined') {
+            return this._cloneOrderBook (data['ob'], limit);
+        }
+        return undefined;
     }
 };

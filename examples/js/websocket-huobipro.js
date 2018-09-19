@@ -1,3 +1,7 @@
+/**
+ * refer to https://github.com/huobiapi/API_Docs/wiki/WS_api_reference
+ * @author imhazige@gmail.com
+ */
 const WebSocket = require('ws');
 const pako = require('pako');
 
