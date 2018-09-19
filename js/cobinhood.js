@@ -131,6 +131,9 @@ module.exports = class cobinhood extends Exchange {
                         'baseurl': 'wss://ws.cobinhood.com/v2/ws',
                     },
                 },
+                'methodmap': {
+                    '_websocketSendHeartbeat': '_websocketSendHeartbeat',
+                },
                 'events': {
                     'ob': {
                         'conx-tpl': 'default',
@@ -715,18 +718,20 @@ module.exports = class cobinhood extends Exchange {
         }
         heartbeatTimer = this._setTimer (
             50000,
-            () => {
-                this.websocketSendJson (
-                    {
-                        'action': 'ping',
-                        'id': Date.now () + '',
-                    },
-                    contextId
-                );
-            },
+            this._websocketMethodMap ('_websocketSendHeartbeat'),
             [contextId]
         );
         this._contextSet (contextId, 'heartbeattimer', heartbeatTimer);
+    }
+
+    _websocketSendHeartbeat (contextId) {
+        this.websocketSendJson (
+            {
+                'action': 'ping',
+                'id': Date.now () + '',
+            },
+            contextId
+        );
     }
 
     websocketClose (conxid = 'default') {
@@ -792,11 +797,11 @@ module.exports = class cobinhood extends Exchange {
         const rawData = symbolData['rawData'];
         // console.log('>>>>>>get last raw',rawData);
         // :update,remove size = 0,check sequence
-        rawData.ask = this._websocketUpdateOrder (rawData.asks, obdata.asks,true);
-        rawData.bid = this._websocketUpdateOrder (rawData.bids, obdata.bids,false);
+        rawData.asks = this._websocketUpdateOrder (rawData.asks, obdata.asks,true);
+        rawData.bids = this._websocketUpdateOrder (rawData.bids, obdata.bids,false);
         // console.log('updated raw',rawData,obdata);
         // :parse orderbook
-        let ob = this.parseOrderBook (obdata, timestamp, 'bids', 'asks', 0, 2);
+        let ob = this.parseOrderBook (rawData, timestamp, 'bids', 'asks', 0, 2);
         // console.log('parsed',ob);
         // :update last raw ob
         symbolData['ob'] = ob;
