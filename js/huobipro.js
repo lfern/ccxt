@@ -787,10 +787,8 @@ module.exports = class huobipro extends Exchange {
 
     _websocketOnMessage (contextId, data) {
         // TODO: pako function in Exchange.js/.py/.php
-        // console.log(data);
         let text = this.gunzip(data);
         // text = pako.inflate (data, { 'to': 'string', });
-        console.log(text);
         let msg = JSON.parse (text);
         let ping = this.safeValue (msg, 'ping');
         let tick = this.safeValue (msg, 'tick');
@@ -801,23 +799,19 @@ module.exports = class huobipro extends Exchange {
             };
             this.websocketSendJson (sendJson);
         } else if (typeof tick !== 'undefined') {
-            // console.log(msg);
             this._websocketDispatch (contextId, msg);
         }
-        //  else :remove console.log(text);
     }
 
     _websocketDispatch (contextId, data) {
-        // console.log('received', data.ch, 'data.ts', data.ts, 'crawler.ts', moment().format('x'));
-        const vals = data.ch.split ('.');
+        const vals = data['ch'].split ('.');
         let rawsymbol = vals[1];
         let channel = vals[2];
         // :symbol
-        const symbol = this.marketsById[rawsymbol].symbol;
+        const symbol = this.marketsById[rawsymbol]['symbol'];
         // let channel = data.ch.split('.')[2];
         if (channel === 'depth') {
             // :ob emit
-            // console.log('ob', data.tick);
             // orderbook[symbol] = data.tick;
             const timestamp = this.safeValue (data, 'ts');
             const obdata = this.safeValue (data, 'tick');
@@ -829,7 +823,6 @@ module.exports = class huobipro extends Exchange {
             this.emit ('ob', symbol, this._cloneOrderBook (symbolData['ob'], symbolData['limit']));
         }
         // TODO:kline
-        // console.log('kline', data.tick);
     }
 
     _websocketSubscribe (contextId, event, symbol, nonce, params = {}) {
@@ -846,7 +839,7 @@ module.exports = class huobipro extends Exchange {
         this._contextSetSymbolData (contextId, event, symbol, data);
         const rawsymbol = this.marketId (symbol);
         const sendJson = {
-            'sub': 'market.' + rawsymbol + '.depth.step' + params['depth'],
+            'sub': 'market.' + rawsymbol + '.depth.step' + params['limit'].toString (),
             'id': rawsymbol,
         };
         this.websocketSendJson (sendJson);
@@ -860,10 +853,11 @@ module.exports = class huobipro extends Exchange {
         }
         params['depth'] = params['depth'] || '2';
         const rawsymbol = this.marketId (symbol);
-        const sendJson = {
-            'unsub': 'market.' + rawsymbol + '.depth.step' + params['depth'],
-            'id': rawsymbol,
-        };
+        // const sendJson = {
+        //     'unsub': 'market.' + rawsymbol + '.depth.step' + params['depth'],
+        //     'id': rawsymbol,
+        // };
+        const sendJson = '{unsub:' + 'market.' + rawsymbol + '.depth.step' + params['limit'].toString () + ',id:' + rawsymbol + '}';
         this.websocketSendJson (sendJson);
         let nonceStr = nonce.toString ();
         this.emit (nonceStr, true);
