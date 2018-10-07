@@ -1053,6 +1053,11 @@ module.exports = class poloniex extends Exchange {
         // Poloniex calls this Price Aggregated Book
         let channelId = data[0];
         let sequenceNumber = data[1];
+        if (sequenceNumber === 0) {
+            // This is the response from poloniex to an unsubscribe command.
+            // THIS RESPONSE IS NOT DOCUMENTED ON THEIR SITE.
+            return;
+        }
         let orderbook = data[2];
         let symbol = this.findSymbol (channelId.toString ());
         let symbolData = this._contextGetSymbolData (contextId, 'ob', symbol);

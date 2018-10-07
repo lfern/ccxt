@@ -29,9 +29,12 @@ async function fetchOrderBook(id, apiKey, secret, limit, symbols, params) {
     apiKey: apiKey,
     secret: secret,
     enableRateLimit: true,
-    verbose: true,
+    verbose: false,
     // agent: agent
   });
+
+  
+
   exchange.on('err', (err, conxid) => {
     try {
       console.log(err);
@@ -46,6 +49,14 @@ async function fetchOrderBook(id, apiKey, secret, limit, symbols, params) {
   });
   await exchange.loadMarkets();
 
+  
+  
+
+  // let ob = await exchange.fetchOrderBook(symbols[0], limit);
+  // console.log(ob)
+  // return
+
+
   for (let j = 0; j < 2; j++) {
     for (let i = 0; i < symbols.length; i++) {
       let symbol = symbols[i];
@@ -55,8 +66,10 @@ async function fetchOrderBook(id, apiKey, secret, limit, symbols, params) {
       let ob = await exchange.websocketFetchOrderBook(symbol, limit);
       console.log('ob fetched: ' + symbol, ob);
       // console.log (ob);
-      await sleep(5 * 1000);
+      await sleep(0.5 * 1000);
     }
+
+    
 
     for (let i = 0; i < symbols.length; i++) {
       let symbol = symbols[i];

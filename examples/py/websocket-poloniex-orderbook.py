@@ -45,7 +45,7 @@ async def main():
     def websocket_ob(symbol, ob):  # pylint: disable=W0612
         print("ob updated: " + symbol)
         sys.stdout.flush()
-        pp.pprint(ob)
+        # pp.pprint(ob)
 
     sys.stdout.flush()
 
