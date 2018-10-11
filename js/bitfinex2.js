@@ -474,3 +474,365 @@ module.exports = class bitfinex2 extends bitfinex {
         return response;
     }
 };
+//     _websocketGenerateUrlStream (events, options) {
+//         // let streamList = [];
+//         // for (let i = 0; i < events.length; i++) {
+//         //     let element = events[i];
+//         //     let params = {
+//         //         'event': element['event'],
+//         //         'symbol': this._websocketMarketId (element['symbol']),
+//         //     };
+//         //     let streamGenerator = this.wsconf['events'][element['event']]['conx-param']['stream'];
+//         //     streamList.push (this.implodeParams (streamGenerator, params));
+//         // }
+//         // let stream = streamList.join ('/');
+//         return options['url'];
+//     }
+
+//     _websocketMarketId (symbol) {
+//         return this.marketId (symbol).toLowerCase ();
+//     }
+
+//     _websocketOnMessage (contextId, data) {
+//         let msg = JSON.parse (data);
+//         // console.log(this.id + '_websocketOnMessage(): msg = ' + JSON.stringify(msg,null,2))
+//         let ws_event = msg['event'];
+//         if (typeof ws_event !== 'undefined') {
+//             this._websocketOnMessageEvent (contextId, msg);
+//         } else {
+//             // console.log(this.id + '_websocketOnMessage(): msg does not contain event field.')
+//             // It can be an update, then msg is a list. The first element is the channel id.
+//             // This should be saved in symboldate when bitfinex returns the first response.
+//             let ws_chanId = msg[0];
+//             if (typeof ws_chanId !== 'undefined') {
+//                 this._websocketOnMessageList (contextId, msg);
+//             } else {
+//                 this.emit ('err', new NotSupported (this.id + '_websocketOnMessage(): msg is not a list.'));
+//             }
+//         }
+//     }
+
+//     _websocketOnMessageList (contextId, msg) {
+//         let ws_chanId = msg[0];
+//         // console.log(this.id + '_websocketOnMessageList(): ws_chanId = ' + ws_chanId)
+//         if (typeof ws_chanId !== 'undefined') {
+//             // chanId appears to be different when resubscribing
+//             // find ws_chanId in this.channelIdToSymbol
+//             let symbol = this.channelIdToSymbol[ws_chanId.toString ()];
+//             // console.log(this.id + '_websocketOnMessageList(): symbol = ' + symbol)
+//             this._websocketHandleObUpdate (contextId, msg, symbol);
+//         } else {
+//             this.emit ('err', new NotSupported (this.id + '_websocketOnMessageList(): msg is not a list.'));
+//         }
+//     }
+
+//     _websocketOnMessageEvent (contextId, msg) {
+//         let ws_event = msg['event'];
+//         if (ws_event === 'info') {
+//             // contains server information:
+//             // msg = {
+//             //   "event": "info",
+//             //   "version": 2,
+//             //   "serverId": "743b0616-0684-4bcd-9fab-c9a0d11feb24",
+//             //   "platform": {
+//             //     "status": 1
+//             //   }
+//             // }
+//         } else if (ws_event === 'subscribed') {
+//             // Now check which channel we subscribed to
+//             let ws_channel = msg['channel'];
+//             if (ws_channel === 'book') {
+//                 this._websocketHandleObFirst (contextId, msg);
+//             } else {
+//                 this.emit ('err', new NotSupported (this.id + '._websocketOnMessage() ws_event: ' + ws_event + ', ws_channel: ' + ws_channel + ' is not implemented.'));
+//                 this.websocketClose (contextId);
+//             }
+//         } else {
+//             this.emit ('err', new NotSupported (this.id + '._websocketOnMessage() ws_event: \'' + ws_event + '\' is not implemented.'));
+//             this.websocketClose (contextId);
+//         }
+//     }
+
+//     _websocketHandleObFirst (contextId, msg) {
+//         // msg = {
+//         //   event: 'subscribed',
+//         //   channel: 'book',
+//         //   chanId: CHANNEL_ID,
+//         //   symbol: SYMBOL,
+//         //   prec: PRECISION,
+//         //   freq: FREQUENCY,
+//         //   len: LENGTH,
+//         // }
+//         let ws_event = msg['event'];
+//         if (typeof ws_event !== 'undefined') {
+//             if (ws_event === 'subscribed') {
+//                 // let ws_channel = msg['channel'];
+//                 let ws_chanId = msg['chanId'];
+//                 let ws_symbol = msg['symbol'];
+//                 let ws_precision = msg['prec'];
+//                 let ws_frequency = msg['freq'];
+//                 let ws_length = msg['len'];
+//                 if (ws_symbol[0] === 't') {
+//                     ws_symbol = ws_symbol.substring (1);
+//                 }
+//                 let symbol = this.findSymbol (ws_symbol.toString ());
+//                 this.channelIdToSymbol[ws_chanId] = symbol;
+//                 // console.log(this.id + '_websocketHandleOb(): symbol = ' + symbol)
+//                 let symbolData = this._contextGetSymbolData (contextId, 'ob', symbol);
+//                 symbolData['chanId'] = ws_chanId;
+//                 symbolData['prec'] = ws_precision;
+//                 symbolData['freq'] = ws_frequency;
+//                 symbolData['len'] = ws_length;
+//                 symbolData['ob'] = {
+//                     'asks': [], // regular orderbook
+//                     'bids': [], // regular orderbook
+//                 };
+//                 symbolData['ob_map'] = {
+//                     'asks_map': {}, // indexed by price, value is [amount, count]
+//                     'bids_map': {}, // indexed by price, value is [amount, count]
+//                 };
+//                 this._contextSetSymbolData (contextId, 'ob', symbol, symbolData);
+//             } else {
+//                 this.emit ('err', new NotSupported (this.id + '._websocketHandleObFirst() unsupported event: ' + ws_event));
+//                 this.websocketClose (contextId);
+//             }
+//         } else {
+//             this.emit ('err', new NotSupported (this.id + '._websocketHandleObFirst() msg does not contain event.'));
+//             this.websocketClose (contextId);
+//         }
+//     }
+
+//     _websocketHandleObUpdate (contextId, msg, symbol) {
+//         let symbolData = this._contextGetSymbolData (contextId, 'ob', symbol);
+//         let orderbook_map = symbolData['ob_map'];
+//         let payload = msg[1];
+//         // console.log(this.id + '._websocketHandleObUpdate(): payload = ' + JSON.stringify(payload, null, 2))
+//         if (typeof payload[0].length === 'undefined') {
+//             // payload is a single order
+//             orderbook_map = this._websocketParseOrders (orderbook_map, [payload]);
+//             // this.emit ('err', new NotSupported (this.id + '._websocketHandleObUpdate() STOP HERE FOR DEBUGGING'));
+//         } else if (payload[0].length === 3) {
+//             // payload is a list of orders
+//             orderbook_map = this._websocketParseOrders (orderbook_map, payload);
+//             // console.log(this.id + '._websocketHandleObUpdate(): ob = ' + JSON.stringify(payload, null, 2))
+//         }
+//         // build orderbook fields 'asks' and 'bids'
+//         let orderbook = this._websocketBuildOrderbook (orderbook_map['bids_map'], orderbook_map['asks_map']);
+//         // console.log(this.id + '._websocketParseOrders(): ob = ' + JSON.stringify(orderbook, null, 2))
+//         symbolData['ob'] = orderbook;
+//         symbolData['ob_map'] = orderbook_map;
+//         this._contextSetSymbolData (contextId, 'ob', symbol, symbolData);
+//         this.emit ('ob', symbol, symbolData['ob']);
+//     }
+
+//     _websocketParseOrders (orderbook_map, order_list) {
+//         // order = [
+//         //  price,
+//         //  count,
+//         //  amount
+//         // ]
+//         let bids_map = orderbook_map['bids_map'];
+//         let asks_map = orderbook_map['asks_map'];
+//         let nOrders = order_list.length;
+//         let order = [];
+//         let price = 0;
+//         let count = 0; // number of order at this price
+//         let amount = 0;
+//         let i = 0;
+//         for (i = 0; i < nOrders; i++) {
+//             order = order_list[i];
+//             price = order[0].toString ();
+//             count = order[1]; // number of order at this price
+//             amount = order[2];
+//             if (count > 0) {
+//                 // add or update bid or ask
+//                 if (amount > 0) {
+//                     // bids
+//                     bids_map[price] = [amount, count];
+//                 } else if (amount < 0) {
+//                     // asks
+//                     asks_map[price] = [-amount, count];
+//                 }
+//             } else if (count === 0) {
+//                 // remove bid or ask
+//                 if (amount > 0) {
+//                     // bids
+//                     delete bids_map[price];
+//                 } else if (amount < 0) {
+//                     // asks
+//                     delete asks_map[price];
+//                 }
+//             }
+//         }
+//         bids_map = this.keysort (bids_map);
+//         asks_map = this.keysort (asks_map);
+//         orderbook_map['bids_map'] = bids_map;
+//         orderbook_map['asks_map'] = asks_map;
+//         return orderbook_map;
+//     }
+
+//     _websocketBuildOrderbook (bids_map, asks_map) {
+//         let bids = this._websocketCloneBidOrAsk (bids_map);
+//         let asks = this._websocketCloneBidOrAsk (asks_map);
+//         let orderbook = {
+//             'asks': asks,
+//             'bids': bids,
+//         };
+//         orderbook = this.parseOrderBook (orderbook);
+//         return orderbook;
+//     }
+
+//     _websocketCloneBidOrAsk (some_dict) {
+//         let bidOrAsk = [];
+//         let keys = Object.keys (some_dict);
+//         let nkeys = keys.length;
+//         let key = 0;
+//         let val = 0;
+//         let amount = 0;
+//         let i = 0;
+//         for (i = 0; i < nkeys; i++) {
+//             key = parseFloat (keys[i]);
+//             val = some_dict[key];
+//             amount = val[0];
+//             if (typeof val !== 'undefined') {
+//                 bidOrAsk.push ([key, amount]);
+//             }
+//         }
+//         return bidOrAsk;
+//     }
+
+//     _websocketDictClean (some_dict) {
+//         let new_dict = {};
+//         let keys = Object.keys (some_dict);
+//         let nkeys = keys.length;
+//         let key = 0;
+//         let val = 0;
+//         let i = 0;
+//         for (i = 0; i < nkeys; i++) {
+//             key = keys[i];
+//             val = some_dict[key];
+//             if (typeof val !== 'undefined') {
+//                 new_dict[key] = val;
+//             }
+//         }
+//         return new_dict;
+//     }
+
+//     _websocketHandleObDeltaCache (contextId, symbol) {
+//         let symbolData = this._contextGetSymbolData (contextId, 'ob', symbol);
+//         // Handle out-of-order sequenceNumber
+//         //
+//         // To avoid a memory leak, we must put a maximum on the size of obDeltaCache.
+//         // When this maximum is reached, we accept that we have lost some orderbook updates.
+//         // In this case we must fetch a new orderbook.
+//         // Alternatively, we could apply all cached deltas and keep going.
+//         if (symbolData['obDeltaCacheSize'] > symbolData['obDeltaCacheSizeMax']) {
+//             symbolData['ob'] = this.fetchOrderBook (symbol, symbolData['limit']);
+//             // delete symbolData['obDeltaCache'];
+//             symbolData['obDeltaCache'] = undefined;
+//             symbolData['obDeltaCacheSize'] = 0;
+//             this._contextSetSymbolData (contextId, 'ob', symbol, symbolData);
+//             return;
+//         }
+//         if (symbolData['obDeltaCacheSize'] === 0) {
+//             this._contextSetSymbolData (contextId, 'ob', symbol, symbolData);
+//             return;
+//         }
+//         // if the cache exists
+//         // check if the next sequenceNumber is in the cache
+//         let fullOrderbook = symbolData['ob'];
+//         let lastSequenceNumber = fullOrderbook['obLastSequenceNumber'];
+//         let cachedSequenceNumber = lastSequenceNumber + 1;
+//         let cachedSequenceNumberStr = cachedSequenceNumber.toString ();
+//         let orderbookDelta = symbolData['obDeltaCache'][cachedSequenceNumberStr];
+//         let continueBool = typeof orderbookDelta !== 'undefined';
+//         // While loop is not transpiled properly
+//         // while (continueBool) {
+//         let nkeys = symbolData['obDeltaCacheSize'];
+//         let i = 0;
+//         for (i = 0; i < nkeys; i++) {
+//             if (!continueBool) {
+//                 break;
+//             }
+//             symbolData['obDeltaCache'][cachedSequenceNumberStr] = undefined;
+//             fullOrderbook = this.mergeOrderBookDelta (symbolData['ob'], orderbookDelta);
+//             fullOrderbook = this._cloneOrderBook (fullOrderbook, symbolData['limit']);
+//             fullOrderbook['obLastSequenceNumber'] = cachedSequenceNumber;
+//             symbolData['ob'] = fullOrderbook;
+//             cachedSequenceNumber += 1;
+//             orderbookDelta = symbolData['obDeltaCache'][cachedSequenceNumberStr];
+//             continueBool = typeof orderbookDelta !== 'undefined';
+//             symbolData['obDeltaCacheSize'] -= 1;
+//         }
+//         this._contextSetSymbolData (contextId, 'ob', symbol, symbolData);
+//     }
+
+//     _websocketSubscribeOb (contextId, event, symbol, nonce, params = {}) {
+//         // create mapping from channelId received from bitfinex to marketid or symbol
+//         if (typeof this.channelIdToSymbol === 'undefined') {
+//             this.channelIdToSymbol = {};
+//         }
+//         let symbolData = this._contextGetSymbolData (contextId, 'ob', symbol);
+//         symbolData['limit'] = this.safeInteger (params, 'limit', undefined);
+//         // symbolData['obDeltaCache'] = undefined;
+//         // symbolData['obDeltaCacheSize'] = 0;
+//         // symbolData['obDeltaCacheSizeMax'] = this.safeInteger (params, 'obDeltaCacheSizeMax', 10);
+//         this._contextSetSymbolData (contextId, 'ob', symbol, symbolData);
+//         //
+//         let market = this.marketId (symbol);
+//         let limit = symbolData['limit'];
+//         if (limit !== 25 && limit !== 100) {
+//             limit = 25; // limit can only be 25 or 100
+//         }
+//         //
+//         let payload = {
+//             'event': 'subscribe',
+//             'channel': 'book',
+//             'symbol': market,
+//             'prec': 'P0', // highest precision
+//             'freq': 'F0', // realtime data
+//             'len': limit,
+//         };
+//         // console.log(this.id + '._websocketSubscribeOb(): payload = ' + JSON.stringify(payload,null,2))
+//         // console.log(this.id + '._websocketSubscribeOb(): symbol = ' + symbol)
+//         let nonceStr = nonce.toString ();
+//         this.emit (nonceStr, true);
+//         this.websocketSendJson (payload);
+//     }
+
+//     _websocketSubscribe (contextId, event, symbol, nonce, params = {}) {
+//         if (event === 'ob') {
+//             this._websocketSubscribeOb (contextId, event, symbol, nonce, params);
+//         } else {
+//             throw new NotSupported (this.id + '._websocketSubscribe() ' + event + '(' + symbol + ') not supported for exchange ' + this.id);
+//         }
+//     }
+
+//     _websocketUnsubscribeOb (conxid, event, symbol, nonce, params) {
+//         let symbolData = this._contextGetSymbolData (conxid, 'ob', symbol);
+//         let chanId = symbolData['chanId'];
+//         let payload = {
+//             'event': 'unsubscribe',
+//             'chanId': chanId,
+//         };
+//         let nonceStr = nonce.toString ();
+//         this.emit (nonceStr, true);
+//         this.websocketSendJson (payload);
+//     }
+
+//     _websocketUnsubscribe (conxid, event, symbol, nonce, params) {
+//         if (event === 'ob') {
+//             this._websocketUnsubscribeOb (conxid, event, symbol, nonce, params);
+//         } else {
+//             throw new NotSupported (this.id + '._websocketUnsubscribe() ' + event + '(' + symbol + ') not supported for exchange ' + this.id);
+//         }
+//     }
+
+//     _getCurrentWebsocketOrderbook (contextId, symbol, limit) {
+//         let data = this._contextGetSymbolData (contextId, 'ob', symbol);
+//         if (('ob' in data) && (typeof data['ob'] !== 'undefined')) {
+//             return this._cloneOrderBook (data['ob'], limit);
+//         }
+//         return undefined;
+//     }
+// };

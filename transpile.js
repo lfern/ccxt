@@ -38,6 +38,8 @@ function regexAll (text, array) {
 
 const commonRegexes = [
 
+    [ /\.isDictionary\s/g, '.is_dictionary'],
+    [ /\.isArray\s/g, '.is_array'],
     [ /\.deepExtend\s/g, '.deep_extend'],
     [ /\.safeFloat\s/g, '.safe_float'],
     [ /\.safeInteger\s/g, '.safe_integer'],
@@ -77,6 +79,7 @@ const commonRegexes = [
     [ /\.filterBy\s/g, '.filter_by'],
     [ /\.groupBy\s/g, '.group_by'],
     [ /\.findMarket\s/g, '.find_market'],
+    [ /\.setMarkets\s/g, '.set_markets'],
     [ /\.findSymbol\s/g, '.find_symbol'],
     [ /\.marketIds\s/g, '.market_ids'],
     [ /\.marketId\s/g, '.market_id'],
@@ -128,6 +131,7 @@ const commonRegexes = [
 
 const pythonRegexes = [
 
+    [ /delete /g, 'del '],
     [ /Array\.isArray\s*\(([^\)]+)\)/g, 'isinstance($1, list)' ],
     [ /([^\(\s]+)\s+instanceof\s+([^\)\s]+)/g, 'isinstance($1, $2)' ],
     [ /typeof\s+([^\s\[]+)(?:\s|\[(.+?)\])\s+\=\=\=?\s+\'undefined\'/g, '$1[$2] is None' ],

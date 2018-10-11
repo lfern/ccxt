@@ -1226,7 +1226,7 @@ module.exports = class hitbtc2 extends hitbtc {
                 }
             }
             if (!removeItem) {
-                newitems.append (item);
+                newitems.push (item);
             }
         }
         return newitems;

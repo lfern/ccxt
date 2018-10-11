@@ -27,7 +27,9 @@ const {
     , sleep
     , timeout
     , TimedOut
-    , buildOHLCVC } = functions
+    , buildOHLCVC
+    , isDictionary
+    , isArray } = functions
 
 const {
     ExchangeError
@@ -1492,7 +1494,13 @@ module.exports = class Exchange extends EventEmitter{
                     conx = this._contextGetConnection(conxid);
                     if (conx != null) {
                         conx.close();
+                        // Why reset context?
+                        // This seems unnecessary and destroys all information required to unsubscribe from a websocket.
+                        // We shoud at the very most reset symbolData, we are only unsubscribing to specific market.
+                        console.log(this.id + '._websocketEnsureConxActive(): calling _websocketResetContext')
                         this._websocketResetContext(conxid, conxtpl);
+                        let symbolData = this._contextGetSymbolData (conxid, 'ob', symbol);
+                        console.log(this.id + '._websocketEnsureConxActive(): symbolData = ' + JSON.stringify(symbolData,null,2))
                     }
                     return conxid;
             }
@@ -1707,12 +1715,16 @@ module.exports = class Exchange extends EventEmitter{
                     reject(new ExchangeError ('Not valid event ' + event + ' for exchange ' + this.id));
                     return;
                 }
-                let conxid = await this._websocketEnsureConxActive (event, symbol, false);
+                // This call will destroy the context. It becomes impossible to unsubscribe
+                // let conxid = await this._websocketEnsureConxActive (event, symbol, false);
+                // We cannot unsubscribe if the symbolData is gone...
+                let conxid = await this._websocketEnsureConxActive (event, symbol, true);
                 const oid = this.nonce();// + '-' + symbol + '-ob-subscribe';
-                this.once (oid.toString(), (success, ex = null) => {
+                this.once (oid.toString(), async function(success, ex = null)  {
                     if (success) {
                         this._contextSetSubscribed(conxid, event, symbol, false);
                         this._contextSetSubscribing(conxid, event, symbol, false);
+                        await this._websocketEnsureConxActive (event, symbol, false);
                         resolve ();
                     } else {
                         if (ex != null) {
