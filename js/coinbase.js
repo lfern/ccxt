@@ -155,29 +155,15 @@ module.exports = class coinbase extends Exchange {
         });
     }
 
-    async fetchTime () {
-        let response = await this.publicGetTime ();
-        let data = response['data'];
-        return this.parse8601 (data['iso']);
+    async fetchTime (params = {}) {
+        const response = await this.publicGetTime (params);
+        const data = this.safeValue (response, 'data', {});
+        return this.parse8601 (this.safeString (data, 'iso'));
     }
 
-    async loadAccounts (reload = false) {
-        if (reload) {
-            this.accounts = await this.fetchAccounts ();
-        } else {
-            if (this.accounts) {
-                return this.accounts;
-            } else {
-                this.accounts = await this.fetchAccounts ();
-                this.accountsById = this.indexBy (this.accounts, 'id');
-            }
-        }
-        return this.accounts;
-    }
-
-    async fetchAccounts () {
+    async fetchAccounts (params = {}) {
         await this.loadMarkets ();
-        let response = await this.privateGetAccounts ();
+        let response = await this.privateGetAccounts (params);
         return response['data'];
     }
 

@@ -165,25 +165,14 @@ class coinbase (Exchange):
             },
         })
 
-    async def fetch_time(self):
-        response = await self.publicGetTime()
-        data = response['data']
-        return self.parse8601(data['iso'])
+    async def fetch_time(self, params={}):
+        response = await self.publicGetTime(params)
+        data = self.safe_value(response, 'data', {})
+        return self.parse8601(self.safe_string(data, 'iso'))
 
-    async def load_accounts(self, reload=False):
-        if reload:
-            self.accounts = await self.fetch_accounts()
-        else:
-            if self.accounts:
-                return self.accounts
-            else:
-                self.accounts = await self.fetch_accounts()
-                self.accountsById = self.index_by(self.accounts, 'id')
-        return self.accounts
-
-    async def fetch_accounts(self):
+    async def fetch_accounts(self, params={}):
         await self.load_markets()
-        response = await self.privateGetAccounts()
+        response = await self.privateGetAccounts(params)
         return response['data']
 
     async def fetch_my_sells(self, symbol=None, since=None, limit=None, params={}):

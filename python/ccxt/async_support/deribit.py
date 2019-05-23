@@ -42,7 +42,7 @@ class deribit (Exchange):
                 'api': 'https://www.deribit.com',
                 'www': 'https://www.deribit.com',
                 'doc': [
-                    'https://www.deribit.com/pages/docs/api',
+                    'https://docs.deribit.com/',
                     'https://github.com/deribit',
                 ],
                 'fees': 'https://www.deribit.com/pages/information/fees',
@@ -51,6 +51,7 @@ class deribit (Exchange):
             'api': {
                 'public': {
                     'get': [
+                        'ping',
                         'test',
                         'getinstruments',
                         'index',
@@ -393,12 +394,12 @@ class deribit (Exchange):
         if price is not None:
             request['price'] = price
         response = await self.privatePostEdit(self.extend(request, params))
-        return self.parse_order(response['result'])
+        return self.parse_order(response['result']['order'])
 
     async def cancel_order(self, id, symbol=None, params={}):
         await self.load_markets()
         response = await self.privatePostCancel(self.extend({'orderId': id}, params))
-        return self.parse_order(response['result'])
+        return self.parse_order(response['result']['order'])
 
     async def fetch_open_orders(self, symbol=None, since=None, limit=None, params={}):
         await self.load_markets()
@@ -442,7 +443,7 @@ class deribit (Exchange):
             self.check_required_credentials()
             nonce = str(self.nonce())
             auth = '_=' + nonce + '&_ackey=' + self.apiKey + '&_acsec=' + self.secret + '&_action=' + query
-            if method == 'POST':
+            if params:
                 params = self.keysort(params)
                 auth += '&' + self.urlencode(params)
             hash = self.hash(self.encode(auth), 'sha256', 'base64')
@@ -453,6 +454,8 @@ class deribit (Exchange):
             if method != 'GET':
                 headers['Content-Type'] = 'application/x-www-form-urlencoded'
                 body = self.urlencode(params)
+            elif params:
+                url += '?' + self.urlencode(params)
         return {'url': url, 'method': method, 'body': body, 'headers': headers}
 
     def handle_errors(self, httpCode, reason, url, method, headers, body, response):
