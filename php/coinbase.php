@@ -156,29 +156,15 @@ class coinbase extends Exchange {
         ));
     }
 
-    public function fetch_time () {
-        $response = $this->publicGetTime ();
-        $data = $response['data'];
-        return $this->parse8601 ($data['iso']);
+    public function fetch_time ($params = array ()) {
+        $response = $this->publicGetTime ($params);
+        $data = $this->safe_value($response, 'data', array ());
+        return $this->parse8601 ($this->safe_string($data, 'iso'));
     }
 
-    public function load_accounts ($reload = false) {
-        if ($reload) {
-            $this->accounts = $this->fetch_accounts ();
-        } else {
-            if ($this->accounts) {
-                return $this->accounts;
-            } else {
-                $this->accounts = $this->fetch_accounts ();
-                $this->accountsById = $this->index_by($this->accounts, 'id');
-            }
-        }
-        return $this->accounts;
-    }
-
-    public function fetch_accounts () {
+    public function fetch_accounts ($params = array ()) {
         $this->load_markets();
-        $response = $this->privateGetAccounts ();
+        $response = $this->privateGetAccounts ($params);
         return $response['data'];
     }
 

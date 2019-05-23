@@ -26,10 +26,33 @@ module.exports = class okex extends okcoinusd {
                     'private': 'https://www.okex.com/api',
                 },
                 'www': 'https://www.okex.com',
-                'doc': 'https://github.com/okcoin-okex/API-docs-OKEx.com',
+                'doc': [
+                    'https://github.com/okcoin-okex/API-docs-OKEx.com',
+                    'https://www.okex.com/docs/en/',
+                ],
                 'fees': 'https://www.okex.com/pages/products/fees.html',
             },
+            'fees': {
+                'trading': {
+                    'taker': 0.0015,
+                    'maker': 0.0010,
+                },
+                'spot': {
+                    'taker': 0.0015,
+                    'maker': 0.0010,
+                },
+                'future': {
+                    'taker': 0.0030,
+                    'maker': 0.0020,
+                },
+                'swap': {
+                    'taker': 0.0070,
+                    'maker': 0.0020,
+                },
+            },
             'commonCurrencies': {
+                // OKEX refers to ERC20 version of Aeternity (AEToken)
+                'AE': 'AET', // https://github.com/ccxt/ccxt/issues/4981
                 'FAIR': 'FairGame',
                 'HOT': 'Hydro Protocol',
                 'HSR': 'HC',
@@ -58,83 +81,7 @@ module.exports = class okex extends okcoinusd {
                     },
                 },
             },
-            'options': {
-                'fetchTickersMethod': 'fetch_tickers_from_api',
-            },
         });
-    }
-
-    calculateFee (symbol, type, side, amount, price, takerOrMaker = 'taker', params = {}) {
-        let market = this.markets[symbol];
-        let key = 'quote';
-        let rate = market[takerOrMaker];
-        let cost = parseFloat (this.costToPrecision (symbol, amount * rate));
-        if (side === 'sell') {
-            cost *= price;
-        } else {
-            key = 'base';
-        }
-        return {
-            'type': takerOrMaker,
-            'currency': market[key],
-            'rate': rate,
-            'cost': parseFloat (this.feeToPrecision (symbol, cost)),
-        };
-    }
-
-    async fetchMarkets (params = {}) {
-        let markets = await super.fetchMarkets (params);
-        // TODO: they have a new fee schedule as of Feb 7
-        // the new fees are progressive and depend on 30-day traded volume
-        // the following is the worst case
-        for (let i = 0; i < markets.length; i++) {
-            if (markets[i]['spot']) {
-                markets[i]['maker'] = 0.0015;
-                markets[i]['taker'] = 0.002;
-            } else {
-                markets[i]['maker'] = 0.0003;
-                markets[i]['taker'] = 0.0005;
-            }
-        }
-        return markets;
-    }
-
-    async fetchTickersFromApi (symbols = undefined, params = {}) {
-        await this.loadMarkets ();
-        let request = {};
-        let response = await this.publicGetTickers (this.extend (request, params));
-        let tickers = response['tickers'];
-        let timestamp = parseInt (response['date']) * 1000;
-        let result = {};
-        for (let i = 0; i < tickers.length; i++) {
-            let ticker = tickers[i];
-            ticker = this.parseTicker (this.extend (tickers[i], { 'timestamp': timestamp }));
-            let symbol = ticker['symbol'];
-            result[symbol] = ticker;
-        }
-        return result;
-    }
-
-    async fetchTickersFromWeb (symbols = undefined, params = {}) {
-        await this.loadMarkets ();
-        let request = {};
-        let response = await this.webGetSpotMarketsTickers (this.extend (request, params));
-        let tickers = response['data'];
-        let result = {};
-        for (let i = 0; i < tickers.length; i++) {
-            let ticker = this.parseTicker (tickers[i]);
-            let symbol = ticker['symbol'];
-            result[symbol] = ticker;
-        }
-        return result;
-    }
-
-    _isFutureSymbol (symbol) {
-        const market = this.markets[symbol];
-        if (!market) {
-            throw new ExchangeError ('invalid symbol');
-        }
-        return market['future'];
     }
 
     _websocketOnOpen (contextId, params) {
@@ -347,11 +294,5 @@ module.exports = class okex extends okcoinusd {
             return this._cloneOrderBook (data['ob'], limit);
         }
         return undefined;
-    }
-
-    async fetchTickers (symbols = undefined, params = {}) {
-        let method = this.options['fetchTickersMethod'];
-        let response = await this[method] (symbols, params);
-        return response;
     }
 };

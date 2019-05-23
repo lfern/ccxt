@@ -243,11 +243,11 @@
     "archive": {
         "exclude": [
             "/build",
+            "/dist",
             "/doc",
             "/js",
             "/python",
-            "/wiki",
-            "/ccxt.wiki"
+            "/wiki"
         ]
     },
     "require-dev": {

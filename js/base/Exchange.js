@@ -100,15 +100,14 @@ module.exports = class Exchange extends EventEmitter{
             'rateLimit': 2000, // milliseconds = seconds * 1000
             'certified': false,
             'has': {
-                'CORS': false,
-                'publicAPI': true,
-                'privateAPI': true,
+                'cancelAllOrders': false,
                 'cancelOrder': true,
                 'cancelOrders': false,
+                'CORS': false,
                 'createDepositAddress': false,
-                'createOrder': true,
-                'createMarketOrder': true,
                 'createLimitOrder': true,
+                'createMarketOrder': true,
+                'createOrder': true,
                 'deposit': false,
                 'editOrder': 'emulated',
                 'fetchBalance': true,
@@ -119,6 +118,7 @@ module.exports = class Exchange extends EventEmitter{
                 'fetchDeposits': false,
                 'fetchFundingFees': false,
                 'fetchL2OrderBook': true,
+                'fetchLedger': false,
                 'fetchMarkets': true,
                 'fetchMyTrades': false,
                 'fetchOHLCV': 'emulated',
@@ -130,10 +130,13 @@ module.exports = class Exchange extends EventEmitter{
                 'fetchTicker': true,
                 'fetchTickers': false,
                 'fetchTrades': true,
+                'fetchTradingFee': false,
                 'fetchTradingFees': false,
                 'fetchTradingLimits': false,
                 'fetchTransactions': false,
                 'fetchWithdrawals': false,
+                'privateAPI': true,
+                'publicAPI': true,
                 'withdraw': false,
             },
             'urls': {
@@ -211,6 +214,20 @@ module.exports = class Exchange extends EventEmitter{
                 'BCHSV': 'BSV',
             },
             'precisionMode': DECIMAL_PLACES,
+            'limits': {
+                'amount': {
+                    'min': undefined,
+                    'max': undefined,
+                },
+                'price': {
+                    'min': undefined,
+                    'max': undefined,
+                },
+                'cost': {
+                    'min': undefined,
+                    'max': undefined,
+                },
+            },
         } // return
     } // describe ()
 
@@ -332,6 +349,7 @@ module.exports = class Exchange extends EventEmitter{
         this.transactions = {}
 
         this.requiresWeb3 = false
+        this.precision = {}
 
         this.enableLastJsonResponse = true
         this.enableLastHttpResponse = true
@@ -405,7 +423,7 @@ module.exports = class Exchange extends EventEmitter{
         Object.keys (this.requiredCredentials).forEach ((key) => {
             if (this.requiredCredentials[key] && !this[key]) {
                 if (error) {
-                    throw new AuthenticationError (this.id + ' requires `' + key + '`')
+                    throw new AuthenticationError (this.id + ' requires `' + key + '` credential')
                 } else {
                     return error
                 }
@@ -448,8 +466,16 @@ module.exports = class Exchange extends EventEmitter{
 
             const params = { method, headers, body, timeout: this.timeout }
 
-            if (url.indexOf ('http://') < 0) {
-                params['agent'] = this.agent || null;
+            if (this.httpAgent && url.indexOf ('http://') === 0) {
+                params['agent'] = this.httpAgent;
+            } else if (this.httpsAgent && url.indexOf ('https://') === 0) {
+                params['agent'] = this.httpsAgent;
+            } else if (this.agent) {
+                const [ protocol, ... rest ] = url.split ('//')
+                // this.agent.protocol contains a colon ('https:' or 'http:')
+                if (protocol === this.agent.protocol) {
+                    params['agent'] = this.agent;
+                }
             }
 
             let promise =
@@ -743,12 +769,26 @@ module.exports = class Exchange extends EventEmitter{
             }
             return this.markets
         }
-        const markets = await this.fetchMarkets (params)
         let currencies = undefined
         if (this.has.fetchCurrencies) {
             currencies = await this.fetchCurrencies ()
         }
+        const markets = await this.fetchMarkets (params)
         return this.setMarkets (markets, currencies)
+    }
+
+    async loadAccounts (reload = false, params = {}) {
+        if (reload) {
+            this.accounts = await this.fetchAccounts (params)
+        } else {
+            if (this.accounts) {
+                return this.accounts
+            } else {
+                this.accounts = await this.fetchAccounts (params)
+            }
+        }
+        this.accountsById = this.indexBy (this.accounts, 'id')
+        return this.accounts
     }
 
     fetchBidsAsks (symbols = undefined, params = {}) {
@@ -1095,6 +1135,17 @@ module.exports = class Exchange extends EventEmitter{
         return this.fetchPartialBalance ('total', params)
     }
 
+    async fetchTradingFees (params = {}) {
+        throw new NotSupported (this.id + ' fetchTradingFees not supported yet')
+    }
+
+    async fetchTradingFee (symbol, params = {}) {
+        if (!this.has['fetchTradingFees']) {
+            throw new NotSupported (this.id + ' fetchTradingFee not supported yet')
+        }
+        return await this.fetchTradingFees (params)
+    }
+
     async loadTradingLimits (symbols = undefined, reload = false, params = {}) {
         if (this.has['fetchTradingLimits']) {
             if (reload || !('limitsLoaded' in this.options)) {
@@ -1170,12 +1221,23 @@ module.exports = class Exchange extends EventEmitter{
         return this.filterBySymbolSinceLimit (result, symbol, since, limit)
     }
 
-    parseTransactions (transactions, currency = undefined, since = undefined, limit = undefined) {
+    parseTransactions (transactions, currency = undefined, since = undefined, limit = undefined, params = {}) {
         // this code is commented out temporarily to catch for exchange-specific errors
         // if (!this.isArray (transactions)) {
         //     throw new ExchangeError (this.id + ' parseTransactions expected an array in the transactions argument, but got ' + typeof transactions);
         // }
-        let result = Object.values (transactions || []).map (transaction => this.parseTransaction (transaction, currency))
+        let result = Object.values (transactions || []).map (transaction => this.extend (this.parseTransaction (transaction, currency), params))
+        result = this.sortBy (result, 'timestamp');
+        let code = (currency !== undefined) ? currency['code'] : undefined;
+        return this.filterByCurrencySinceLimit (result, code, since, limit);
+    }
+
+    parseLedger (data, currency = undefined, since = undefined, limit = undefined) {
+        let result = [];
+        let array = Object.values (data || []);
+        for (let i = 0; i < array.length; i++) {
+            result.push (this.parseLedgerEntry (array[i], currency));
+        }
         result = this.sortBy (result, 'timestamp');
         let code = (currency !== undefined) ? currency['code'] : undefined;
         return this.filterByCurrencySinceLimit (result, code, since, limit);
@@ -1190,6 +1252,20 @@ module.exports = class Exchange extends EventEmitter{
         result = sortBy (result, 'timestamp')
         let symbol = (market !== undefined) ? market['symbol'] : undefined
         return this.filterBySymbolSinceLimit (result, symbol, since, limit)
+    }
+
+    safeCurrencyCode (data, key, currency = undefined) {
+        let code = undefined;
+        let currencyId = this.safeString (data, key);
+        if (currencyId in this.currencies_by_id) {
+            currency = this.currencies_by_id[currencyId];
+        } else {
+            code = this.commonCurrencyCode (currencyId);
+        }
+        if (currency !== undefined) {
+            code = currency['code'];
+        }
+        return code;
     }
 
     filterBySymbol (array, symbol = undefined) {
@@ -1546,8 +1622,22 @@ module.exports = class Exchange extends EventEmitter{
         const signature = this.signMessage (orderHash, privateKey);
         return this.extend (order, {
             'orderHash': orderHash,
-            'ecSignature': signature, // todo fix v if needed
+            'signature': this.convertECSignatureToSignatureHex(signature),
         })
+    }
+
+    convertECSignatureToSignatureHex (signature) {
+        // https://github.com/0xProject/0x-monorepo/blob/development/packages/order-utils/src/signature_utils.ts
+        let v = signature.v;
+        if (v !== 27 && v !== 28) {
+            v = v + 27;
+        }
+        const signatureBuffer = Buffer.concat ([
+            ethUtil.toBuffer (v),
+            ethUtil.toBuffer (signature.r),
+            ethUtil.toBuffer (signature.s)
+        ])
+        return '0x' + signatureBuffer.toString ('hex') + '03';
     }
 
     hashMessage (message) {
@@ -2491,9 +2581,9 @@ module.exports = class Exchange extends EventEmitter{
         return zlib.inflateRawSync (data).toString ();
     }
     
-    oath (key) {
+    oath () {
         if (typeof this.twofa !== 'undefined') {
-            return this.totp (key)
+            return this.totp (this.twofa)
         } else {
             throw new ExchangeError (this.id + ' this.twofa has not been set')
         }
