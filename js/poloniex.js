@@ -125,6 +125,13 @@ module.exports = class poloniex extends Exchange {
                             'id': '{id}',
                         },
                     },
+                    'od': {
+                        'conx-tpl': 'default',
+                        'conx-param': {
+                            'url': '{baseurl}',
+                            'id': '{id}',
+                        },
+                    },
                 },
             },
             // Fees are tier-based. More info: https://poloniex.com/fees/
@@ -1344,32 +1351,25 @@ module.exports = class poloniex extends Exchange {
 
     _websocketOnMessage (contextId, data) {
         let msg = JSON.parse (data);
+        // console.log("msg::",msg)
         let channelId = msg[0];
-        if (channelId === 1000) {
-            // account notification (beta)
-            console.log ('notification');
-        } else if (channelId === 1002) {
-            // ticker data
-            console.log ('ticker');
-        } else if (channelId === 1003) {
-            // 24 hour exchange volume
-            console.log ('24 hour exchange volume');
-        } else if (channelId === 1010) {
-            console.log (this.id + '._websocketOnMessage() heartbeat ' + data);
+        // if channelId is not one of the above, check if it is a marketId
+        let symbolsIds = this._contextGet (contextId, 'symbolids');
+        let channelIdStr = channelId.toString ();
+        if (channelIdStr in symbolsIds) {
+            // both 'ob' and 'trade' are handled by the same execution branch
+            // as on poloniex they are part of the same endpoint
+            let symbol = symbolsIds[channelIdStr];
+            this._websocketHandleOb (contextId, symbol, msg);
+        } else if (channelIdStr === '1000') {
+            // Private Channel
+            this._websocketHandleOrders (contextId, msg);
+        } else if (channelIdStr === '1010') {
+            // Hearthbeat
         } else {
-            // if channelId is not one of the above, check if it is a marketId
-            let symbolsIds = this._contextGet (contextId, 'symbolids');
-            let channelIdStr = channelId.toString ();
-            if (channelIdStr in symbolsIds) {
-                // both 'ob' and 'trade' are handled by the same execution branch
-                // as on poloniex they are part of the same endpoint
-                let symbol = symbolsIds[channelIdStr];
-                this._websocketHandleOb (contextId, symbol, msg);
-            } else {
-                // Some error occured
-                this.emit ('err', new ExchangeError (this.id + '._websocketOnMessage() failed to get symbol for channelId: ' + channelIdStr));
-                this.websocketClose (contextId);
-            }
+            // Some error occured
+            this.emit ('err', new ExchangeError (this.id + '._websocketOnMessage() failed to get symbol for channelId: ' + channelIdStr));
+            this.websocketClose (contextId);
         }
     }
 
@@ -1393,6 +1393,81 @@ module.exports = class poloniex extends Exchange {
         };
     }
 
+    _websocketHandleOrders (contextId, data) {
+        // return if it is only acknowledge of connection
+        let mktsymbolsIds = this._contextGet (contextId, 'mktsymbolids');
+        let od = this._contextGetSymbolData (contextId, 'od', 'all');
+        if (od['od'] === undefined) {
+            od['od'] = {};
+        }
+        if (data[1] === 1) {
+            this.emit ('od', this._cloneOrders (od['od']));
+            return 
+        }
+        let datareceived = data[2];
+        for (let i = 0; i < datareceived.length; i++) {
+            let msg = datareceived[i];
+            if (msg[0] === 'b') {
+                // Balance Update ==> Not use at the moment
+            } else if (msg[0] === 'n') {
+                // New Order : ["n", <currency pair id>, <t order number>, <order type>, "<rate>", "<amount>", "<date>"]
+                let side = (msg[3] === 1) ? 'buy' : 'sell';
+                let timestamp = msg[6] * 1000;
+                let order = {
+                    'id': msg[2],
+                    'timestamp': timestamp,
+                    'datetime': this.iso8601 (timestamp),
+                    'status': 'open',
+                    'type': 'limit',
+                    'side': side,
+                    'price': parseFloat (msg[4]),
+                    'amount': parseFloat (msg[5]),
+                    'symbol': mktsymbolsIds[msg[1]],
+                    'remaining': parseFloat (msg[5]),
+                    'filled': 0.0,
+                    'cost': 0.0,
+                    'trades': [],
+                    'info': msg,
+                };
+                let orderid = order['id'];
+                od['od'][orderid] = order;
+            } else if (msg[0] === 'o') {
+                let order = this._websocketReturnOrder (od['od'],msg[1],msg);
+                order['remaining'] = parseFloat (msg[2]);
+                if (parseFloat (order['remaining']) === 0) {
+                    order['status'] = 'closed';
+                }
+                od['od'][msg[1]] = order;
+            } else if (msg[0] === 't') {
+                let order = this._websocketReturnOrder (od['od'],msg[6],msg);
+                let trade = this._websocketParseTrade (msg, order['symbol']);
+                order['filled'] = parseFloat (order['filled']) + parseFloat(msg[3]);
+                order['cost'] = parseFloat (order['cost']) + parseFloat(msg[7]);
+                order['trades'].push (trade);
+                od['od'][msg[6]] = order;
+            } else {
+                this.emit ('err', new ExchangeError ('Message Type ' + msg[0] + ' is not handle at the moment'));
+            }
+        }
+        this._contextSetSymbolData (contextId, 'od', 'all', od);
+        this.emit ('od', this._cloneOrders (od['od']));
+    }
+    _websocketReturnOrder (orders,orderId,msg) {
+        //Return the order if it exist or a dummy order to keep track of what we receive
+        if (typeof orders[orderId] !== 'undefined'){
+            return orders[orderId]
+        } else {
+            return {
+                'id': orderId,
+                'status': 'open',
+                'remaining': 0.0,
+                'filled': 0.0,
+                'cost': 0.0,
+                'trades': [],
+                'info': msg
+            }
+        }
+    }
     _websocketHandleOb (contextId, symbol, data) {
         // Poloniex calls this Price Aggregated Book
         // let channelId = data[0];
@@ -1466,8 +1541,6 @@ module.exports = class poloniex extends Exchange {
                         if (this._contextIsSubscribed (contextId, 'trade', symbol)) {
                             let trade = this._websocketParseTrade (order, symbol);
                             this.emit ('trade', symbol, trade);
-                        } else {
-                            console.log (this.id + '._websocketHandleOb() skipping trade.');
                         }
                         continue;
                     } else {
@@ -1558,6 +1631,9 @@ module.exports = class poloniex extends Exchange {
         if (!this._contextIsSubscribed (contextId, 'trade', symbol)) {
             let market = this.findMarket (symbol);
             let symbolsIds = this._contextGet (contextId, 'symbolids');
+            if(typeof symbolsIds === 'undefined'){
+                symbolsIds = {}
+            }
             symbolsIds[market['id2']] = symbol;
             this._contextSet (contextId, 'symbolids', symbolsIds);
             let payload = {
@@ -1586,11 +1662,55 @@ module.exports = class poloniex extends Exchange {
         this.emit (nonceStr, true);
     }
 
+    async _websocketRegisterMktSymbol (contextId) {
+        let market = await this.fetchMarkets ();
+        let mktsymbolsIds = {};
+        for (let i = 0; i < market.length; i++) {
+            mktsymbolsIds[market[i]['id2']] = market[i]['symbol'];
+        }
+        this._contextSet (contextId, 'mktsymbolids', mktsymbolsIds);
+    }
+
+    async _websocketRegisterCurSymbol (contextId) {
+        let currencies = this.fetchCurrencies ();
+        let ids = Object.keys (currencies);
+        let cursymbolsIds = {};
+        for (let i = 0; i < ids.length; i++) {
+            let currency = currencies[ids[i]];
+            cursymbolsIds[currency['info']['id']] = currency['id'];
+        }
+        this._contextSet (contextId, 'cursymbolids', cursymbolsIds);
+    }
+
+    _websocketSubscribeOrders (contextId, event, nonce, params = {}) {
+        if (!this._contextIsSubscribed (contextId, 'ob', 'all')) {
+            let data = this._contextGetSymbolData (contextId, event, 'all');
+            data['od'] = undefined;
+            this._contextSetSymbolData (contextId, event, 'all', data);
+            // Setup Market Conversion table
+            this._websocketRegisterMktSymbol (contextId);
+            // Setup Currency Conversion Table
+            this._websocketRegisterCurSymbol (contextId);
+            let payload = {
+                'command': 'subscribe',
+                'channel': 1000,
+                'key': this.apiKey,
+                'payload': 'nonce=' + nonce,
+                'sign': this.hmac (this.encode ('nonce=' + nonce), this.encode (this.secret), 'sha512'),
+            };
+            this.websocketSendJson (payload);
+        }
+        let nonceStr = nonce.toString ();
+        this.emit (nonceStr, true);
+    }
+
     _websocketSubscribe (contextId, event, symbol, nonce, params = {}) {
         if (event === 'ob') {
             this._websocketSubscribeOb (contextId, event, symbol, nonce, params);
         } else if (event === 'trade') {
             this._websocketSubscribeTrade (contextId, event, symbol, nonce, params);
+        } else if (event === 'od') {
+            this._websocketSubscribeOrders (contextId, event, nonce, params);
         } else {
             throw new NotSupported ('subscribe ' + event + '(' + symbol + ') not supported for exchange ' + this.id);
         }
@@ -1636,6 +1756,14 @@ module.exports = class poloniex extends Exchange {
         let data = this._contextGetSymbolData (contextId, 'ob', symbol);
         if (('ob' in data) && (typeof data['ob'] !== 'undefined')) {
             return this._cloneOrderBook (data['ob'], limit);
+        }
+        return undefined;
+    }
+
+    _getCurrentOrders (contextId, orderid) {
+        let data = this._contextGetSymbolData (contextId, 'od', 'all');
+        if ('od' in data && typeof data['od'] !== 'undefined') {
+            return this._cloneOrders (data['od'], orderid);
         }
         return undefined;
     }

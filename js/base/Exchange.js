@@ -2275,6 +2275,20 @@ module.exports = class Exchange extends EventEmitter{
         }
         return ret;
     }
+    
+    _cloneOrders (od, orderid = undefined) {
+        let ret =  {
+            'timestamp': od.timestamp,
+            'datetime': od.datetime,
+            'nonce': od.nonce,
+        };
+        if (orderid === undefined) {
+            ret['orders'] = od
+        } else {
+            ret['orders'] = od[orderid]
+        }
+        return ret;
+    }
 
     _executeAndCallback (contextId, method, params, callback, context = {}, thisParam = null) {
         try {
@@ -2329,6 +2343,30 @@ module.exports = class Exchange extends EventEmitter{
                 reject (ex);
             }
         }), 'websocketFetchOrderBook');
+    }
+    
+    websocketOrders(orderid = undefined) {
+        return this.timeoutPromise (new Promise (async (resolve, reject) => {
+            try {
+                if (!this._websocketValidEvent('od')) {
+                    reject(new ExchangeError ('Not valid event ob for exchange ' + this.id));
+                    return;
+                }
+                let conxid = await this._websocketEnsureConxActive ('od', 'all', true);
+                let od = this._getCurrentOrders (conxid, orderid);
+                if (typeof od !== 'undefined') {
+                    resolve (od);
+                    return;
+                }
+                let f = (od) => {
+                    this.removeListener ('od', f);
+                    resolve (this._getCurrentOrders (conxid, orderid));
+                }
+                this.on ('od', f);
+            } catch (ex) {
+                reject (ex);
+            }
+        }), 'websocketOrders');
     }
 
     async websocketSubscribe (event, symbol, params = {}) {
@@ -2568,6 +2606,10 @@ module.exports = class Exchange extends EventEmitter{
 
     _getCurrentWebsocketOrderbook (contextId, symbol, limit) {
         throw new NotSupported ('You must implement _getCurrentWebsocketOrderbook method for exchange ' + this.id);
+    }
+    
+    _getCurrentOrders (contextId, id, limit) {
+        throw new NotSupported ('You must implement _getCurrentOrders method for exchange ' + this.id);
     }
 
     gunzip (data) {
