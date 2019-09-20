@@ -787,7 +787,6 @@ module.exports = class bitfinex2 extends bitfinex {
 
     _websocketHandleOrderBook (contextId, symbol, msg) {
         let data = msg[1];
-        let firstElement = data[0];
         let timestamp = undefined;
         let dt = undefined;
         let length = msg.length;
@@ -796,7 +795,7 @@ module.exports = class bitfinex2 extends bitfinex {
             dt = this.iso8601 (timestamp);
         }
         let symbolData = this._contextGetSymbolData (contextId, 'ob', symbol);
-        if (Array.isArray (firstElement)) {
+        if (data.length == 0 || Array.isArray (data[0])) {
             // snapshot
             symbolData['ob'] = {
                 'bids': [],
