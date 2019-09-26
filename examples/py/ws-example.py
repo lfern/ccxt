@@ -12,7 +12,8 @@ loop = asyncio.get_event_loop()  # type: asyncio.BaseEventLoop
 
 async def main():
     ws = WebsocketConnection({
-        'url': 'wss://echo.websocket.org'
+        'url': 'wss://echo.websocket.org',
+        'verbose': True,
     }, 5 * 1000, loop)
 
     @ws.on('err')
