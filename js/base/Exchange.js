@@ -1659,7 +1659,7 @@ module.exports = class Exchange extends EventEmitter{
     }
 
     _websocketValidEvent (event) {
-        return (typeof this.wsconf['events'] !== undefined) && (event in this.wsconf['events']);
+        return (this.wsconf['events'] !== undefined) && (event in this.wsconf['events']);
     }
 
     _websocketResetContext (conxid, conxtpl = undefined) {
