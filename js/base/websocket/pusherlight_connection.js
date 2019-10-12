@@ -102,7 +102,7 @@ module.exports = class PusherLightConnection extends WebsocketBaseConnection {
                     return;
                 }
                 that.resetActivityCheck ();
-                const msg = JSON.parse(data);
+                const msg = data.data ? JSON.parse(data.data) : JSON.parse(data);
                 if (msg.event === 'pusher:connection_established'){
                     // starting
                     const eventData = JSON.parse(msg.data);
